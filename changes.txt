@@ -1,6 +1,38 @@
 # BT KB & Mouse - Change Log
 
-## Initial Release v1.0.0 - $(date '+%Y-%m-%d')
+## v1.0.1
+
+### HID Implementation
+- Full Bluetooth HID device implementation with proper HID report descriptors
+- Keyboard: Full key mapping with shift support (a-z, 0-9, symbols, enter, space, tab, backspace)
+- Mouse: Precise relative movement reports with 8-bit X/Y/wheel encoding
+- Left click, right click, scroll wheel support
+- HID proxy registration via BluetoothProfile.ServiceListener
+- Combined keyboard + mouse descriptor registered as subclass combo device
+- QOS settings configured for best-effort HID transport
+- Send text as sequence of key presses with proper delays
+- Mouse reports include proper button bitmask encoding
+
+### Split View Screen
+- Combined touchpad + keyboard on single screen
+- Instant mode: Text field sends keystrokes as typed
+- Clipboard mode: Recent sent history for quick replay
+- Presets mode: Saved phrases one-tap send
+- Touchpad with drag (move), tap (left click), long-press (right click)
+- Sensitivity slider shared between touchpad and keyboard
+- Scroll buttons for wheel scrolling
+- Toggle keyboard panel visibility with icon
+
+### Touchpad Improvements
+- Left click sends proper HID button 1 report
+- Right click sends proper HID button 2 report
+- Long press gesture for right-click
+
+### Bug Fixes
+- Fixed Flow.first() compilation errors in ViewModel
+- Fixed missing pointerInput import in Components.kt
+
+## Initial Release v1.0.0
 
 ### Project Setup
 - Created Android project with Gradle Kotlin DSL (AGP 8.2.2, Kotlin 1.9.22)

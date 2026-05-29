@@ -143,6 +143,40 @@ fun HomeScreen(
                 )
             }
 
+            Spacer(Modifier.height(12.dp))
+
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onNavigate("splitview") }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Dashboard,
+                        contentDescription = "Split View",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Split View",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = TextPrimary
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "(KB + Mouse)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextTertiary
+                    )
+                }
+            }
+
             Spacer(Modifier.height(80.dp))
         }
     }

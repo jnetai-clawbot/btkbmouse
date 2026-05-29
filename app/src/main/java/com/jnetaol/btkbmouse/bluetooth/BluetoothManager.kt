@@ -1,19 +1,17 @@
 package com.jnetaol.btkbmouse.bluetooth
 
-import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Application
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothHidDevice
 import android.bluetooth.BluetoothHidDeviceAppQosSettings
 import android.bluetooth.BluetoothHidDeviceAppSdpSettings
-import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.jnetaol.btkbmouse.logger.DebugLogger
@@ -37,6 +35,7 @@ data class ConnectionState(
 
 class BluetoothManager(private val app: Application) {
     companion object {
+        private const val TAG = "BTManager"
         private const val SDP_RECORD_NAME = "BT KB & Mouse"
         private const val SDP_DESCRIPTION = "Bluetooth Keyboard and Mouse"
         private const val SDP_PROVIDER = "jnetai.com"
@@ -46,7 +45,9 @@ class BluetoothManager(private val app: Application) {
         (app.getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager).adapter
     }
 
-    private var hidDevice: BluetoothHidDevice? = null
+    private var hidDeviceProxy: BluetoothHidDevice? = null
+    private var connectedHidDevice: BluetoothDevice? = null
+    private var reportIdCounter: Byte = 1
 
     private val _pairedDevices = MutableStateFlow<List<DiscoveredDevice>>(emptyList())
     val pairedDevices: StateFlow<List<DiscoveredDevice>> = _pairedDevices.asStateFlow()
@@ -66,6 +67,76 @@ class BluetoothManager(private val app: Application) {
     private val handler = Handler(Looper.getMainLooper())
     private var scanRunnable: Runnable? = null
 
+    private val kbReportDescriptor = byteArrayOf(
+        0x05, 0x01, 0x09, 0x06, 0xa1.toByte(), 0x01,
+        0x05, 0x07,
+        0x19, 0xe0.toByte(), 0x29, 0xe7.toByte(),
+        0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x08,
+        0x81, 0x02,
+        0x95, 0x01, 0x75, 0x08, 0x81, 0x01,
+        0x95, 0x06, 0x75, 0x08, 0x15, 0x00, 0x25, 0x65,
+        0x05, 0x07, 0x19, 0x00, 0x29, 0x65,
+        0x81, 0x00,
+        0xc0.toByte()
+    )
+
+    private val mouseReportDescriptor = byteArrayOf(
+        0x05, 0x01, 0x09, 0x02, 0xa1.toByte(), 0x01,
+        0x09, 0x01, 0xa1.toByte(), 0x00,
+        0x05, 0x09, 0x19, 0x01, 0x29, 0x03,
+        0x15, 0x00, 0x25, 0x01, 0x95, 0x03, 0x75, 0x01,
+        0x81, 0x02,
+        0x95, 0x01, 0x75, 0x05, 0x81, 0x01,
+        0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x09, 0x38,
+        0x15, 0x81.toByte(), 0x25, 0x7f, 0x75, 0x08, 0x95, 0x03,
+        0x81, 0x06,
+        0xc0.toByte(), 0xc0.toByte()
+    )
+
+    private val keyUsageMap = mapOf(
+        'a' to 4, 'b' to 5, 'c' to 6, 'd' to 7, 'e' to 8, 'f' to 9,
+        'g' to 10, 'h' to 11, 'i' to 12, 'j' to 13, 'k' to 14, 'l' to 15,
+        'm' to 16, 'n' to 17, 'o' to 18, 'p' to 19, 'q' to 20, 'r' to 21,
+        's' to 22, 't' to 23, 'u' to 24, 'v' to 25, 'w' to 26, 'x' to 27,
+        'y' to 28, 'z' to 29,
+        '1' to 30, '2' to 31, '3' to 32, '4' to 33, '5' to 34,
+        '6' to 35, '7' to 36, '8' to 37, '9' to 38, '0' to 39,
+        '\n' to 40, ' ' to 44, '-' to 45, '=' to 46, '[' to 47,
+        ']' to 48, '\\' to 49, ';' to 51, '\'' to 52, ',' to 54,
+        '.' to 55, '/' to 56, '\b' to 42, '\t' to 43
+    )
+
+    private val shiftMap = mapOf(
+        'A' to 4, 'B' to 5, 'C' to 6, 'D' to 7, 'E' to 8, 'F' to 9,
+        'G' to 10, 'H' to 11, 'I' to 12, 'J' to 13, 'K' to 14, 'L' to 15,
+        'M' to 16, 'N' to 17, 'O' to 18, 'P' to 19, 'Q' to 20, 'R' to 21,
+        'S' to 22, 'T' to 23, 'U' to 24, 'V' to 25, 'W' to 26, 'X' to 27,
+        'Y' to 28, 'Z' to 29,
+        '!' to 30, '@' to 31, '#' to 32, '$' to 33, '%' to 34,
+        '^' to 35, '&' to 36, '*' to 37, '(' to 38, ')' to 39,
+        '_' to 45, '+' to 46, '{' to 47, '}' to 48, '|' to 49,
+        ':' to 51, '"' to 52, '<' to 54, '>' to 55, '?' to 56
+    )
+
+    private val hidCallback = object : BluetoothHidDevice.Callback() {
+        override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
+            DebugLogger.i(TAG, "BT-060 HID app status: plugged=${pluggedDevice?.name}, registered=$registered")
+            if (pluggedDevice != null && registered) {
+                connectedHidDevice = pluggedDevice
+                _connectionState.value = _connectionState.value.copy(isHidRegistered = true, error = null)
+                DebugLogger.i(TAG, "BT-061 HID connected to ${pluggedDevice.name}")
+            }
+        }
+
+        override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
+            DebugLogger.i(TAG, "BT-062 HID conn state: $state for ${device?.name}")
+            if (state == BluetoothProfile.STATE_DISCONNECTED && device == connectedHidDevice) {
+                _connectionState.value = ConnectionState()
+                connectedHidDevice = null
+            }
+        }
+    }
+
     private val scanReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
@@ -78,34 +149,17 @@ class BluetoothManager(private val app: Application) {
                         current.removeAll { it.device.address == device.address }
                         current.add(entry)
                         _discoveredDevices.value = current.sortedByDescending { it.rssi }
-                        DebugLogger.d("BTManager", "BT-010 Found: ${device.name} (${device.address}) RSSI: $rssi")
                     }
                 }
                 BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
-                    val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
                     val state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
-                    when (state) {
-                        BluetoothDevice.BOND_BONDED -> {
-                            DebugLogger.i("BTManager", "BT-011 Paired with ${device?.name}")
-                            refreshPairedDevices()
-                        }
-                        BluetoothDevice.BOND_NONE -> {
-                            DebugLogger.i("BTManager", "BT-012 Unpaired with ${device?.name}")
-                            refreshPairedDevices()
-                        }
+                    if (state == BluetoothDevice.BOND_BONDED || state == BluetoothDevice.BOND_NONE) {
+                        refreshPairedDevices()
                     }
                 }
                 BluetoothAdapter.ACTION_STATE_CHANGED -> {
                     val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                     _isBluetoothEnabled.value = state == BluetoothAdapter.STATE_ON
-                    DebugLogger.i("BTManager", "BT-013 BT state: $state")
-                }
-                BluetoothDevice.ACTION_ACL_CONNECTED -> {
-                    DebugLogger.i("BTManager", "BT-014 ACL connected")
-                }
-                BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                    DebugLogger.i("BTManager", "BT-015 ACL disconnected")
-                    _connectionState.value = _connectionState.value.copy(isConnected = false)
                 }
             }
         }
@@ -118,22 +172,19 @@ class BluetoothManager(private val app: Application) {
                 addAction(BluetoothDevice.ACTION_FOUND)
                 addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
                 addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
-                addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
             }
             app.registerReceiver(scanReceiver, filter)
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-001 Register receiver failed", e)
+            DebugLogger.e(TAG, "BT-001 Register receiver failed", e)
         }
     }
 
     fun enableBluetooth(): Boolean {
         return try {
             btAdapter?.enable()
-            DebugLogger.i("BTManager", "BT-020 Enabling Bluetooth")
             true
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-002 Enable BT failed", e)
+            DebugLogger.e(TAG, "BT-002 Enable BT failed", e)
             false
         }
     }
@@ -144,9 +195,9 @@ class BluetoothManager(private val app: Application) {
                 DiscoveredDevice(device, 0, device.name ?: "Unknown")
             } ?: emptyList()
             _pairedDevices.value = devices
-            DebugLogger.i("BTManager", "BT-021 Paired devices: ${devices.size}")
+            DebugLogger.i(TAG, "BT-021 Paired: ${devices.size}")
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-003 Refresh paired failed", e)
+            DebugLogger.e(TAG, "BT-003 Refresh paired failed", e)
         }
     }
 
@@ -155,20 +206,15 @@ class BluetoothManager(private val app: Application) {
             _isScanning.value = true
             _discoveredDevices.value = emptyList()
             val started = btAdapter?.startDiscovery() ?: false
-            if (!started) {
-                DebugLogger.w("BTManager", "BT-030 Discovery start failed")
-                _isScanning.value = false
-            } else {
-                DebugLogger.i("BTManager", "BT-031 Discovery started")
+            if (!started) _isScanning.value = false
+            else {
                 scanRunnable?.let { handler.removeCallbacks(it) }
-                scanRunnable = Runnable {
-                    stopDiscovery()
-                }
+                scanRunnable = Runnable { stopDiscovery() }
                 scanRunnable?.let { handler.postDelayed(it, 30000L) }
             }
             started
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-004 Discovery error", e)
+            DebugLogger.e(TAG, "BT-004 Discovery error", e)
             _isScanning.value = false
             false
         }
@@ -178,76 +224,193 @@ class BluetoothManager(private val app: Application) {
         try {
             btAdapter?.cancelDiscovery()
             _isScanning.value = false
-            DebugLogger.i("BTManager", "BT-032 Discovery stopped")
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-005 Stop discovery error", e)
+            DebugLogger.e(TAG, "BT-005 Stop discovery error", e)
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun pairDevice(device: BluetoothDevice) {
         try {
             if (device.bondState == BluetoothDevice.BOND_NONE) {
-                DebugLogger.i("BTManager", "BT-040 Initiating pair with ${device.name}")
                 device.createBond()
+                DebugLogger.i(TAG, "BT-040 Pairing with ${device.name}")
             }
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-006 Pair error", e)
+            DebugLogger.e(TAG, "BT-006 Pair error", e)
         }
     }
 
     fun connectDevice(device: BluetoothDevice) {
         try {
-            _connectionState.value = _connectionState.value.copy(
+            _connectionState.value = ConnectionState(
                 isConnected = true,
                 deviceName = device.name ?: "Unknown",
-                deviceAddress = device.address,
-                error = null
+                deviceAddress = device.address
             )
-            DebugLogger.i("BTManager", "BT-050 Connected to ${device.name}")
+            DebugLogger.i(TAG, "BT-050 Connected: ${device.name}")
             registerHidDevice()
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-007 Connect error", e)
-            _connectionState.value = _connectionState.value.copy(error = e.message)
+            DebugLogger.e(TAG, "BT-007 Connect error", e)
+            _connectionState.value = _connectionState.value.copy(error = "Connection failed: ${e.message}")
         }
     }
 
     private fun registerHidDevice() {
         try {
-            DebugLogger.i("BTManager", "BT-060 Registering HID device")
-            _connectionState.value = _connectionState.value.copy(isHidRegistered = true)
+            btAdapter?.getProfileProxy(app, object : BluetoothProfile.ServiceListener {
+                override fun onServiceConnected(profile: Int, proxy: BluetoothProfile?) {
+                    if (profile == BluetoothProfile.HID_DEVICE && proxy is BluetoothHidDevice) {
+                        hidDeviceProxy = proxy
+                        DebugLogger.i(TAG, "BT-065 HID proxy obtained")
+
+                        val combinedDescriptor = kbReportDescriptor + mouseReportDescriptor
+                        val sdpSettings = BluetoothHidDeviceAppSdpSettings(
+                            SDP_RECORD_NAME,
+                            SDP_DESCRIPTION,
+                            SDP_PROVIDER,
+                            BluetoothHidDevice.SUBCLASS1_COMBO,
+                            combinedDescriptor
+                        )
+                        val qosSettings = BluetoothHidDeviceAppQosSettings(
+                            BluetoothHidDeviceAppQosSettings.SERVICE_BEST_EFFORT,
+                            800, 9, 0, 1000, 1000
+                        )
+                        val registered = hidDeviceProxy?.registerApp(
+                            sdpSettings, qosSettings, qosSettings,
+                            { app.mainExecutor }, hidCallback
+                        ) ?: false
+                        DebugLogger.i(TAG, "BT-066 HID register result: $registered")
+                        if (!registered) {
+                            _connectionState.value = _connectionState.value.copy(
+                                error = "HID registration failed. Target device may not support HID."
+                            )
+                        }
+                    }
+                }
+
+                override fun onServiceDisconnected(profile: Int) {
+                    DebugLogger.w(TAG, "BT-067 HID proxy disconnected")
+                    hidDeviceProxy = null
+                }
+            }, BluetoothProfile.HID_DEVICE)
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-008 HID register error", e)
+            DebugLogger.e(TAG, "BT-008 HID register error", e)
+            _connectionState.value = _connectionState.value.copy(error = "HID error: ${e.message}")
         }
     }
 
     fun disconnect() {
         try {
-            DebugLogger.i("BTManager", "BT-070 Disconnecting")
+            if (connectedHidDevice != null && hidDeviceProxy != null) {
+                hidDeviceProxy?.unregisterApp()
+            }
+            connectedHidDevice = null
+            hidDeviceProxy?.close()
+            hidDeviceProxy = null
             _connectionState.value = ConnectionState()
+            DebugLogger.i(TAG, "BT-070 Disconnected")
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-009 Disconnect error", e)
+            DebugLogger.e(TAG, "BT-009 Disconnect error", e)
         }
     }
 
-    fun sendKeyEvent(keyCode: Int, isPress: Boolean) {
-        DebugLogger.d("BTManager", "BT-080 Key event: $keyCode press=$isPress")
+    fun sendMouseReport(buttons: Int, dx: Float, dy: Float) {
+        try {
+            val proxy = connectedHidDevice ?: return
+            val hid = hidDeviceProxy ?: return
+            val x = dx.toInt().coerceIn(-127, 127)
+            val y = dy.toInt().coerceIn(-127, 127)
+            val report = byteArrayOf(2, buttons.toByte(), x.toByte(), y.toByte(), 0)
+            hid.sendReport(proxy, 2, report)
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "BT-019 Mouse report error", e)
+        }
     }
 
-    fun sendMouseEvent(dx: Float, dy: Float, buttons: Int = 0) {
-        DebugLogger.d("BTManager", "BT-081 Mouse move: dx=$dx dy=$dy buttons=$buttons")
+    fun sendKeyboardReport(modifiers: Byte, vararg keys: Byte) {
+        try {
+            val proxy = connectedHidDevice ?: return
+            val hid = hidDeviceProxy ?: return
+            val report = ByteArray(9)
+            report[0] = 1
+            report[1] = modifiers
+            for (i in 0 until minOf(keys.size, 6)) {
+                report[3 + i] = keys[i]
+            }
+            hid.sendReport(proxy, 1, report)
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "BT-020 Keyboard report error", e)
+        }
+    }
+
+    fun sendKeyPress(keyCode: Byte, modifiers: Byte = 0) {
+        sendKeyboardReport(modifiers, keyCode)
+        handler.postDelayed({
+            sendKeyboardReport(0)
+        }, 60)
     }
 
     fun sendTextString(text: String) {
-        DebugLogger.i("BTManager", "BT-082 Sending text: ${text.take(30)}...")
+        DebugLogger.i(TAG, "BT-083 Sending: ${text.take(40)}")
+        var delay = 0L
+        for (char in text) {
+            val isShift = char in shiftMap
+            val usage = if (isShift) shiftMap[char] else keyUsageMap[char]
+            if (usage != null) {
+                val mod: Byte = if (isShift) 0x02 else 0x00
+                handler.postDelayed({
+                    sendKeyPress(usage.toByte(), mod)
+                }, delay)
+                delay += if (text.length > 10) 20 else 80
+            }
+        }
+    }
+
+    fun sendMouseLeftClick(press: Boolean) {
+        val buttons = if (press) 1 else 0
+        try {
+            val proxy = connectedHidDevice ?: return
+            val hid = hidDeviceProxy ?: return
+            val report = byteArrayOf(2, buttons.toByte(), 0, 0, 0)
+            hid.sendReport(proxy, 2, report)
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "BT-021 Click error", e)
+        }
+    }
+
+    fun sendMouseRightClick(press: Boolean) {
+        val buttons = if (press) 2 else 0
+        try {
+            val proxy = connectedHidDevice ?: return
+            val hid = hidDeviceProxy ?: return
+            val report = byteArrayOf(2, buttons.toByte(), 0, 0, 0)
+            hid.sendReport(proxy, 2, report)
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "BT-022 Right click error", e)
+        }
+    }
+
+    fun sendMouseWheel(scroll: Float) {
+        try {
+            val proxy = connectedHidDevice ?: return
+            val hid = hidDeviceProxy ?: return
+            val w = scroll.toInt().coerceIn(-127, 127)
+            val report = byteArrayOf(2, 0, 0, 0, w.toByte())
+            hid.sendReport(proxy, 2, report)
+        } catch (e: Exception) {
+            DebugLogger.e(TAG, "BT-023 Wheel error", e)
+        }
     }
 
     fun cleanup() {
         try {
             handler.removeCallbacksAndMessages(null)
             app.unregisterReceiver(scanReceiver)
-            DebugLogger.i("BTManager", "BT-090 Cleanup complete")
+            disconnect()
+            DebugLogger.i(TAG, "BT-090 Cleanup complete")
         } catch (e: Exception) {
-            DebugLogger.e("BTManager", "BT-010 Cleanup error", e)
+            DebugLogger.e(TAG, "BT-010 Cleanup error", e)
         }
     }
 }

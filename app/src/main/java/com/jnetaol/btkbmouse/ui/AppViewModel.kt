@@ -196,11 +196,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendMouseDelta(dx: Float, dy: Float) {
-        btManager.sendMouseEvent(dx, dy)
+        btManager.sendMouseReport(0, dx, dy)
+    }
+
+    fun sendMouseLeftClick(press: Boolean) {
+        btManager.sendMouseLeftClick(press)
+    }
+
+    fun sendMouseRightClick(press: Boolean) {
+        btManager.sendMouseRightClick(press)
+    }
+
+    fun sendMouseWheel(scroll: Float) {
+        btManager.sendMouseWheel(scroll)
     }
 
     fun sendKeyEvent(keyCode: Int, isPress: Boolean) {
-        btManager.sendKeyEvent(keyCode, isPress)
+        btManager.sendKeyEvent(keyCode)
     }
 
     fun sendText(text: String) {
