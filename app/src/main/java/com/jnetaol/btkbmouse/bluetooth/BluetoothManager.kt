@@ -292,6 +292,12 @@ class BluetoothManager(private val app: Application) {
 
     fun retryHidRegistration() {
         DebugLogger.i(TAG, "BT-068 Manual HID retry requested")
+        if (pendingHidTarget == null) {
+            val addr = _connectionState.value.deviceAddress
+            if (addr.isNotEmpty()) {
+                pendingHidTarget = btAdapter?.getRemoteDevice(addr)
+            }
+        }
         hidRetryCount = 0
         scheduleHidRetry()
     }
@@ -355,6 +361,23 @@ class BluetoothManager(private val app: Application) {
                             _connectionState.value = _connectionState.value.copy(
                                 isHidRegistered = true, error = null
                             )
+                            val target = pendingHidTarget
+                            if (target != null && hidDeviceProxy != null) {
+                                val connected = hidDeviceProxy!!.connect(target)
+                                DebugLogger.i(TAG, "BT-081 HID connect to ${target.name} result: $connected")
+                                if (!connected) {
+                                    _connectionState.value = _connectionState.value.copy(
+                                        error = "HID connect failed. Check host Bluetooth settings."
+                                    )
+                                    scheduleHidRetry()
+                                } else {
+                                    _connectionState.value = _connectionState.value.copy(
+                                        isHidConnected = true, error = null
+                                    )
+                                }
+                            } else {
+                                DebugLogger.w(TAG, "BT-084 No pending HID target to connect")
+                            }
                         } else {
                             isHidAppRegistered = false
                             _connectionState.value = _connectionState.value.copy(

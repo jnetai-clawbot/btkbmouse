@@ -1,5 +1,15 @@
 # BT KB & Mouse - Change Log
 
+## v1.0.3
+
+### Critical HID Fix
+- Fixed "Waiting for host" issue: now calls `BluetoothHidDevice.connect(device)` after `registerApp()`
+  to actively establish the HID channel with the Linux host
+- Without `connect()`, the Android device advertised HID but never initiated the connection,
+  so the Linux host never saw it as a usable HID keyboard/mouse
+- `retryHidRegistration()` now re-resolves the target device from the stored address
+- Connection flow: pair → connect (BT) → registerApp → connect (HID) → send reports
+
 ## v1.0.2
 
 ### HID Registration Fix
