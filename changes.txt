@@ -1,5 +1,19 @@
 # BT KB & Mouse - Change Log
 
+## v1.0.4
+
+### Critical HID Fixes
+- **Descriptors**: Added Report ID tags (`0x85`) to kb/mouse descriptors matching sendReport IDs (1=keyboard, 2=mouse)
+  This fixes Linux/bluez rejecting combined descriptor reports that lack per-report ID declarations
+- **Report format**: Removed redundant report ID byte from sendReport data arrays (framework prepends it)
+  Keyboard: 8 bytes (was 9), Mouse: 4 bytes (was 5). Fixes garbled reports on Linux
+- **Early registration**: HID SDP is now published in init{} before any pairing, so Linux host
+  discovers HID Keyboard + Mouse service during device discovery
+- **Bluetooth auto-register**: HID app re-registers when Bluetooth turns on and after disconnect
+- **Removed incorrect connect()**: Android HID Device doesn't call connect() — the host discovers SDP
+  and initiates HID connection. connect() is for HID Host mode only
+- **Clean retry logic**: unregisters old HID app before retry to avoid stale registration conflicts
+
 ## v1.0.3
 
 ### Critical HID Fix
