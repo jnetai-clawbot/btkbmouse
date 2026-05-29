@@ -212,7 +212,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendKeyEvent(keyCode: Int, isPress: Boolean) {
-        btManager.sendKeyEvent(keyCode)
+        btManager.sendKeyPress(keyCode.toByte())
     }
 
     fun sendText(text: String) {
