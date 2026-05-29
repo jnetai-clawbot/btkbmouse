@@ -1,0 +1,20 @@
+- Connection setup for pairing/selecting Bluetooth devices
+- Settings page with toggleable device emulation (keyboard, mouse, speakers, mic, video)
+- Primary functions: touchpad mouse, keyboard input (3 modes: instant send, clipboard paste, preset history)
+- Sensitivity/delay/volume/gain controls with profiles
+- GitHub Actions CI/CD with APK releases using a consistent keystore
+- Persistent error handling/error codes throughout
+- About section with version, update checker, and share button
+- Dark centered theme, professional UI
+Ready to proceed when you give the go-ahead. What would you like me to do?
+
+
+
+
+
+
+
+
+
+
+

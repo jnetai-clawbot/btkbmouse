@@ -1,0 +1,44 @@
+# BT KB & Mouse - Change Log
+
+## Initial Release v1.0.0 - $(date '+%Y-%m-%d')
+
+### Project Setup
+- Created Android project with Gradle Kotlin DSL (AGP 8.2.2, Kotlin 1.9.22)
+- minSdk 29, targetSdk 34, compileSdk 34
+- Jetpack Compose with Material 3, Room database, Navigation Compose
+- ARM64-v8a only
+
+### Core Features
+- Bluetooth connection manager with device discovery, pairing, and connection
+- Touchpad screen with drag gesture support and sensitivity controls
+- Keyboard input with 3 modes: Instant send, Clipboard send, Preset phrases
+- Settings page with profiles, emulated device toggles, mouse/keyboard/audio controls
+- Profile management (create, delete, switch) with custom names
+- Emulated device support: Keyboard, Mouse, Speaker, Microphone, Webcam, Gamepad, Barcode Scanner
+- Audio controls: Speaker volume and microphone gain sliders
+- Keyboard delay and repeat delay settings
+- Preset phrase history with save and replay
+
+### UI Design
+- Dark Material 3 theme with neon glow effects
+- Connection status indicators
+- Professional centered layout with bottom spacing
+
+### About Section
+- Made by jnetai.com
+- Version display matching GitHub release tag
+- Check for Updates button (GitHub API)
+- Share App button
+
+### CI/CD
+- GitHub Actions: build-debug.yml (on push to main)
+- GitHub Actions: build-release.yml (on tag v* or workflow_dispatch)
+- Keystore committed for consistent signing across updates
+- APK artifact upload and GitHub Release creation
+
+### Error Handling
+- Permanent debug logging with error codes (BK-000 through BK-203)
+- Persistent DebugLogger with enableLogging toggle
+- Error display components in all screens
+- Graceful fallbacks with user-facing error messages
+- Connection state management with error propagation
