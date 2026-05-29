@@ -1,5 +1,18 @@
 # BT KB & Mouse - Change Log
 
+## v1.0.2
+
+### HID Registration Fix
+- Fixed "HID Not Registered" issue when connecting to Linux (ARM 64-bit Ubuntu) hosts
+- App now correctly tracks HID registration state in `registerApp()` callback
+- `isHidAppRegistered` set immediately on successful `registerApp()`, before host connects
+- Added `isHidConnected` field to track actual host connection state separately
+- Connection status now shows: "HID Connected", "HID Registered (Waiting for host...)", or "HID Not Registered"
+- Added automatic retry logic: up to 5 attempts with backoff (0s, 2s, 4s, 8s, 16s)
+- HID callback `onConnectionStateChanged` triggers re-registration on connect events
+- Added "Retry HID Registration" button in Connection screen
+- HID proxy disconnection also triggers retry for robust recovery
+
 ## v1.0.1
 
 ### HID Implementation

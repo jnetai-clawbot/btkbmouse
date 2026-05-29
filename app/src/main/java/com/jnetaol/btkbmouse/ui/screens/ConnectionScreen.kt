@@ -146,11 +146,30 @@ fun ConnectionScreen(
                                 color = TextSecondary
                             )
                             Spacer(Modifier.height(8.dp))
+                            val hidLabel = when {
+                                connectionState.isHidConnected -> "HID Connected"
+                                connectionState.isHidRegistered -> "HID Registered (Waiting for host...)"
+                                else -> "HID Not Registered"
+                            }
+                            val hidColor = when {
+                                connectionState.isHidConnected -> SuccessGreen
+                                connectionState.isHidRegistered -> NeonBlue
+                                else -> WarningOrange
+                            }
                             Text(
-                                text = if (connectionState.isHidRegistered) "HID Registered" else "HID Not Registered",
+                                text = hidLabel,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (connectionState.isHidRegistered) SuccessGreen else WarningOrange
+                                color = hidColor
                             )
+                            if (!connectionState.isHidConnected) {
+                                Spacer(Modifier.height(8.dp))
+                                GlowButton(
+                                    text = "Retry HID Registration",
+                                    icon = Icons.Default.Refresh,
+                                    onClick = { btManager.retryHidRegistration() },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
