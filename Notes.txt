@@ -9,6 +9,28 @@
 Ready to proceed when you give the go-ahead. What would you like me to do?
 
 
+Now creating the v1.0.0 tag to trigger the release build:
+# Create and push v1.0.0 tag
+$ git -C /home/jay/Documents/Scripts/AI/OpenCode/blutooth-kb-and-mouse tag -a v1.0.0 -m "BT KB & Mouse v1.0.0 - Initial Release" && git -C /home/jay/Documents/Scripts/AI/OpenCode/blutooth-kb-and-mouse push origin v1.0.0 2>&1
+To https://github.com/jnetai-clawbot/btkbmouse.git
+ * [new tag]         v1.0.0 -> v1.0.0
++ Thought: 1.0s
+BT KB & Mouse project is complete and pushed.
+
+BT KB & Mouse Repository: https://github.com/jnetai-clawbot/btkbmouse
+Releases: https://github.com/jnetai-clawbot/btkbmouse/releases
+
+The v1.0.0 tag has been pushed, which should trigger the GitHub Actions release workflow. Once it completes, the APK will appear at the releases link above.
+What's included:
+- Connection setup — scan, pair, and connect to Bluetooth devices
+- Touchpad — drag-gesture mouse control with sensitivity slider
+- Keyboard input — 3 modes: instant key-by-key send, clipboard paste, preset phrase history
+- Settings — profiles (create/delete/switch with custom names), emulated device toggles (keyboard, mouse, speaker, mic, webcam, gamepad, scanner), mouse sensitivity, keyboard delay, speaker volume, mic gain
+- About — Made by jnetai.com, version display, Check for Updates button, Share App button
+- Dark Material 3 theme with neon effects
+- Persistent error codes (BK-000 through BK-203) throughout
+- Consistent keystore committed for seamless updates
+
 
 
 

@@ -8,6 +8,7 @@ import com.jnetaol.btkbmouse.data.db.AppDatabase
 import com.jnetaol.btkbmouse.data.model.*
 import com.jnetaol.btkbmouse.logger.DebugLogger
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -62,7 +63,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             EmulatedDevice("scanner", false, "Barcode Scanner", "scanner")
         )
         defaults.forEach { device ->
-            val existing = emulatedDeviceDao.getAllDevices().value?.find { it.deviceType == device.deviceType }
+            val existing = emulatedDeviceDao.getAllDevices().first().find { it.deviceType == device.deviceType }
             if (existing == null) {
                 emulatedDeviceDao.setDevice(device)
             }
@@ -71,7 +72,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun loadSettingsSnapshot() {
         try {
-            val all = settingsDao.getAllSettings().value ?: emptyList()
+            val all = settingsDao.getAllSettings().first()
             _settingsSnapshot.value = all.associate { it.key to it.value }
         } catch (e: Exception) {
             DebugLogger.e("AppVM", "BK-003 Settings load error", e)
